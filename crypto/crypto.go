@@ -2,7 +2,7 @@ package crypto
 
 import "fmt"
 
-var CryptorSet map[string]Cryptor
+var CryptorSet = make(map[string]Cryptor)
 
 // RegisterCryptor register cryptor
 func RegisterCryptor(name string, cryptor Cryptor) {
