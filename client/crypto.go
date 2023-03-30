@@ -26,7 +26,7 @@ type clientCrypto struct {
 
 // Type 插件类型.
 func (c *clientCrypto) Type() common.Type {
-	return common.TypeConfigConnector
+	return common.TypePluginBase
 }
 
 // Name 插件名
