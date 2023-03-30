@@ -7,10 +7,28 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+
+	"github.com/alexwanglei/polaris-server-plugin-encryption/crypto"
 )
 
+const (
+	CryptorName = "AES"
+)
+
+func init() {
+	crypto.RegisterCryptor(CryptorName, &aesCryptor{})
+}
+
+// aesCryptor AES crypto
+type aesCryptor struct {
+}
+
+func New() *aesCryptor {
+	return &aesCryptor{}
+}
+
 // GenerateKey 生成Key
-func GenerateKey() ([]byte, error) {
+func (c *aesCryptor) GenerateKey() ([]byte, error) {
 	key := make([]byte, 16)
 	_, err := rand.Read(key)
 	if err != nil {
@@ -20,39 +38,39 @@ func GenerateKey() ([]byte, error) {
 }
 
 // Encrypt 加密
-func Encrypt(data []byte, key []byte) ([]byte, error) {
+func (c *aesCryptor) Encrypt(plaintext []byte, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
 	blockSize := block.BlockSize()
-	paddingData := pkcs7Padding(data, blockSize)
-	crypted := make([]byte, len(paddingData))
+	paddingData := pkcs7Padding(plaintext, blockSize)
+	ciphertext := make([]byte, len(paddingData))
 	blockMode := cipher.NewCBCEncrypter(block, key[:blockSize])
-	blockMode.CryptBlocks(crypted, paddingData)
-	return crypted, nil
+	blockMode.CryptBlocks(ciphertext, paddingData)
+	return ciphertext, nil
 }
 
 // Decrypt 解密
-func Decrypt(crypted []byte, key []byte) ([]byte, error) {
+func (c *aesCryptor) Decrypt(ciphertext []byte, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
 	blockSize := block.BlockSize()
 	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize])
-	paddingData := make([]byte, len(crypted))
-	blockMode.CryptBlocks(paddingData, crypted)
-	data, err := pkcs7UnPadding(paddingData)
+	paddingPlaintext := make([]byte, len(ciphertext))
+	blockMode.CryptBlocks(paddingPlaintext, ciphertext)
+	plaintext, err := pkcs7UnPadding(paddingPlaintext)
 	if err != nil {
 		return nil, err
 	}
-	return data, nil
+	return plaintext, nil
 }
 
 // EncryptToBase64 AES encrypt plaintext and base64 encode ciphertext
-func EncryptToBase64(plaintext, key []byte) (string, error) {
-	ciphertext, err := Encrypt(plaintext, key)
+func (c *aesCryptor) EncryptToBase64(plaintext, key []byte) (string, error) {
+	ciphertext, err := c.Encrypt(plaintext, key)
 	if err != nil {
 		return "", err
 	}
@@ -60,12 +78,12 @@ func EncryptToBase64(plaintext, key []byte) (string, error) {
 }
 
 // DecryptFromBase64 base64 decode ciphertext and AES decrypt
-func DecryptFromBase64(base64Ciphertext string, key []byte) ([]byte, error) {
+func (c *aesCryptor) DecryptFromBase64(base64Ciphertext string, key []byte) ([]byte, error) {
 	ciphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
 	if err != nil {
 		return nil, err
 	}
-	return Decrypt(ciphertext, key)
+	return c.Decrypt(ciphertext, key)
 }
 
 func pkcs7Padding(data []byte, blockSize int) []byte {
