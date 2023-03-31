@@ -9,10 +9,11 @@ import (
 	"github.com/polarismesh/polaris-go/pkg/plugin"
 	"github.com/polarismesh/polaris-go/pkg/plugin/common"
 	"github.com/polarismesh/polaris-go/pkg/plugin/configconnector"
+	"github.com/polarismesh/polaris-go/pkg/plugin/configfilter"
 )
 
 // ConfigFileHandleFunc 配置文件处理函数
-type ConfigFileHandleFunc func(configFile *configconnector.ConfigFile) (*configconnector.ConfigFileResponse, error)
+// type ConfigFileHandleFunc func(configFile *configconnector.ConfigFile) (*configconnector.ConfigFileResponse, error)
 
 const (
 	PluginName       = "crypto"
@@ -67,7 +68,7 @@ func (c *CryptoFilter) IsEnable(cfg config.Configuration) bool {
 	return cfg.GetGlobal().GetSystem().GetMode() != model.ModeWithAgent
 }
 
-func (c *CryptoFilter) DoFilter(configFile *configconnector.ConfigFile, next ConfigFileHandleFunc) ConfigFileHandleFunc {
+func (c *CryptoFilter) DoFilter(configFile *configconnector.ConfigFile, next configfilter.ConfigFileHandleFunc) configfilter.ConfigFileHandleFunc {
 	return func(configFile *configconnector.ConfigFile) (*configconnector.ConfigFileResponse, error) {
 		// 如果是加密配置，生成公钥和私钥，
 		if configFile.GetIsEncrypted() {
