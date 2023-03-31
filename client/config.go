@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+// Config crypto filter config
 type Config struct {
 	Algorithm string `yaml:"algorithm" json:"algorithm"`
 }

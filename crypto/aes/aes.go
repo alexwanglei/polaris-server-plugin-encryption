@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	// CryptorName cryptor name
 	CryptorName = "AES"
 )
 
@@ -19,15 +20,16 @@ func init() {
 	crypto.RegisterCryptor(CryptorName, &aesCryptor{})
 }
 
-// aesCryptor AES crypto
+// aesCryptor AES cryptor
 type aesCryptor struct {
 }
 
+// New new AES cryptor
 func New() *aesCryptor {
 	return &aesCryptor{}
 }
 
-// GenerateKey 生成Key
+// GenerateKey generate key
 func (c *aesCryptor) GenerateKey() ([]byte, error) {
 	key := make([]byte, 16)
 	_, err := rand.Read(key)
@@ -37,7 +39,7 @@ func (c *aesCryptor) GenerateKey() ([]byte, error) {
 	return key, nil
 }
 
-// Encrypt 加密
+// Encrypt AES encryption
 func (c *aesCryptor) Encrypt(plaintext []byte, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -51,7 +53,7 @@ func (c *aesCryptor) Encrypt(plaintext []byte, key []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-// Decrypt 解密
+// Decrypt AES decryption
 func (c *aesCryptor) Decrypt(ciphertext []byte, key []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {

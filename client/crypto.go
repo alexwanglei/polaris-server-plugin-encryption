@@ -1,22 +1,16 @@
 package client
 
 import (
-	"encoding/json"
-
 	"github.com/alexwanglei/polaris-server-plugin-encryption/crypto"
 	"github.com/alexwanglei/polaris-server-plugin-encryption/crypto/aes"
 	"github.com/alexwanglei/polaris-server-plugin-encryption/crypto/rsa"
 	"github.com/polarismesh/polaris-go/pkg/config"
-	"github.com/polarismesh/polaris-go/pkg/log"
 	"github.com/polarismesh/polaris-go/pkg/model"
 	"github.com/polarismesh/polaris-go/pkg/plugin"
 	"github.com/polarismesh/polaris-go/pkg/plugin/common"
 	"github.com/polarismesh/polaris-go/pkg/plugin/configconnector"
 	"github.com/polarismesh/polaris-go/pkg/plugin/configfilter"
 )
-
-// ConfigFileHandleFunc 配置文件处理函数
-// type ConfigFileHandleFunc func(configFile *configconnector.ConfigFile) (*configconnector.ConfigFileResponse, error)
 
 const (
 	PluginName       = "crypto"
@@ -27,6 +21,7 @@ func init() {
 	plugin.RegisterConfigurablePlugin(&CryptoFilter{}, &Config{})
 }
 
+// CryptoFilter crypto filter plugin
 type CryptoFilter struct {
 	*plugin.PluginBase
 	cfg        *Config
@@ -35,17 +30,17 @@ type CryptoFilter struct {
 	privateKey *rsa.RSAKey
 }
 
-// Type 插件类型.
+// Type plugin type
 func (c *CryptoFilter) Type() common.Type {
 	return 0x1015
 }
 
-// Name 插件名
+// Name plugin name
 func (c *CryptoFilter) Name() string {
 	return PluginName
 }
 
-// Init 初始化插件
+// Init plugin
 func (c *CryptoFilter) Init(ctx *plugin.InitContext) error {
 	c.PluginBase = plugin.NewPluginBase(ctx)
 
@@ -61,7 +56,7 @@ func (c *CryptoFilter) Init(ctx *plugin.InitContext) error {
 	return nil
 }
 
-// Destroy 销毁插件
+// Destroy plugin
 func (c *CryptoFilter) Destroy() error {
 	return nil
 }
@@ -71,9 +66,9 @@ func (c *CryptoFilter) IsEnable(cfg config.Configuration) bool {
 	return cfg.GetGlobal().GetSystem().GetMode() != model.ModeWithAgent
 }
 
+// DoFilter do crypto filter
 func (c *CryptoFilter) DoFilter(configFile *configconnector.ConfigFile, next configfilter.ConfigFileHandleFunc) configfilter.ConfigFileHandleFunc {
 	return func(configFile *configconnector.ConfigFile) (*configconnector.ConfigFileResponse, error) {
-		log.GetBaseLogger().Infof("[Config] do filter: configFile:%s\n", jsonify(configFile))
 		// 如果是加密配置，生成公钥和私钥，
 		if configFile.GetIsEncrypted() {
 			privateKey, err := rsa.GenerateRSAKey()
@@ -88,14 +83,12 @@ func (c *CryptoFilter) DoFilter(configFile *configconnector.ConfigFile, next con
 		if err != nil {
 			return resp, err
 		}
-		log.GetBaseLogger().Infof("[Config] next resp:%s\n", jsonify(resp))
 		// 如果是加密配置
 		if resp.GetConfigFile().GetIsEncrypted() && resp.GetConfigFile().GetContent() != "" {
 			// 返回了数据密钥，解密配置
 			if resp.GetConfigFile().GetDataKey() != "" {
 				dataKey, err := rsa.DecryptFromBase64(resp.GetConfigFile().GetDataKey(), c.privateKey.PrivateKey)
 				if err != nil {
-					log.GetBaseLogger().Infof("[Config] rsa decrypt err:%v", err)
 					return nil, err
 				}
 				plainContent, err := c.cryptor.DecryptFromBase64(resp.GetConfigFile().GetContent(), dataKey)
@@ -111,12 +104,4 @@ func (c *CryptoFilter) DoFilter(configFile *configconnector.ConfigFile, next con
 		}
 		return resp, err
 	}
-}
-
-func jsonify(data interface{}) string {
-	if data != nil {
-		bytes, _ := json.Marshal(data)
-		return string(bytes)
-	}
-	return ""
 }
