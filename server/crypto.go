@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	PluginName       = "serverCrypto"
+	PluginName       = "crypto"
 	DefaultAlgorithm = aes.CryptorName
 )
 
