@@ -93,7 +93,7 @@ func (c *CryptoFilter) DoFilter(configFile *configconnector.ConfigFile, next con
 		if resp.GetConfigFile().GetIsEncrypted() && resp.GetConfigFile().GetContent() != "" {
 			// 返回了数据密钥，解密配置
 			if resp.GetConfigFile().GetDataKey() != "" {
-				dataKey, err := rsa.DecryptFromBase64(configFile.GetDataKey(), c.privateKey.PrivateKey)
+				dataKey, err := rsa.DecryptFromBase64(resp.GetConfigFile().GetDataKey(), c.privateKey.PrivateKey)
 				if err != nil {
 					log.GetBaseLogger().Infof("[Config] rsa decrypt err:%v", err)
 					return nil, err
