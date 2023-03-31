@@ -3,78 +3,105 @@ package client
 import (
 	"github.com/alexwanglei/polaris-server-plugin-encryption/crypto"
 	"github.com/alexwanglei/polaris-server-plugin-encryption/crypto/aes"
+	"github.com/alexwanglei/polaris-server-plugin-encryption/crypto/rsa"
 	"github.com/polarismesh/polaris-go/pkg/config"
 	"github.com/polarismesh/polaris-go/pkg/model"
 	"github.com/polarismesh/polaris-go/pkg/plugin"
 	"github.com/polarismesh/polaris-go/pkg/plugin/common"
+	"github.com/polarismesh/polaris-go/pkg/plugin/configconnector"
 )
 
+// ConfigFileHandleFunc 配置文件处理函数
+type ConfigFileHandleFunc func(configFile *configconnector.ConfigFile) (*configconnector.ConfigFileResponse, error)
+
 const (
-	PluginName       = "clientCrypto"
+	PluginName       = "crypto"
 	DefaultAlgorithm = aes.CryptorName
 )
 
 func init() {
-	plugin.RegisterConfigurablePlugin(&clientCrypto{}, nil)
+	plugin.RegisterConfigurablePlugin(&CryptoFilter{}, &Config{})
 }
 
-type clientCrypto struct {
+type CryptoFilter struct {
 	*plugin.PluginBase
-	alog    string
-	cryptor crypto.Cryptor
+	cfg        *Config
+	alog       string
+	cryptor    crypto.Cryptor
+	privateKey *rsa.RSAKey
 }
 
 // Type 插件类型.
-func (c *clientCrypto) Type() common.Type {
+func (c *CryptoFilter) Type() common.Type {
 	return 0x1015
 }
 
 // Name 插件名
-func (c *clientCrypto) Name() string {
+func (c *CryptoFilter) Name() string {
 	return PluginName
 }
 
 // Init 初始化插件
-func (c *clientCrypto) Init(ctx *plugin.InitContext) error {
+func (c *CryptoFilter) Init(ctx *plugin.InitContext) error {
 	c.PluginBase = plugin.NewPluginBase(ctx)
 
-	// if cryptor, ok := crypto.CryptorSet[s.alog]; ok {
-	// 	s.cryptor = cryptor
-	// } else {
-	// 	s.cryptor = crypto.CryptorSet[DefaultAlgorithm]
-	// }
+	cfgValue := ctx.Config.GetConfigFile().GetConfigFilterConfig().GetPluginConfig(c.Name())
+	if cfgValue != nil {
+		c.cfg = cfgValue.(*Config)
+	}
+	if cryptor, ok := crypto.CryptorSet[c.cfg.Algorithm]; ok {
+		c.cryptor = cryptor
+	} else {
+		c.cryptor = crypto.CryptorSet[DefaultAlgorithm]
+	}
 	return nil
 }
 
 // Destroy 销毁插件
-func (c *clientCrypto) Destroy() error {
+func (c *CryptoFilter) Destroy() error {
 	return nil
 }
 
 // IsEnable enable
-func (c *clientCrypto) IsEnable(cfg config.Configuration) bool {
+func (c *CryptoFilter) IsEnable(cfg config.Configuration) bool {
 	return cfg.GetGlobal().GetSystem().GetMode() != model.ModeWithAgent
 }
 
-// Encrypt 加密
-func (c *clientCrypto) Encrypt(plaintext string) (ciphertext string, key []byte, err error) {
-	key, err = c.cryptor.GenerateKey()
-	if err != nil {
-		return
-	}
-	// 加密
-	ciphertext, err = c.cryptor.EncryptToBase64([]byte(plaintext), key)
-	if err != nil {
-		return
-	}
-	return
-}
+func (c *CryptoFilter) DoFilter(configFile *configconnector.ConfigFile, next ConfigFileHandleFunc) ConfigFileHandleFunc {
+	return func(configFile *configconnector.ConfigFile) (*configconnector.ConfigFileResponse, error) {
+		// 如果是加密配置，生成公钥和私钥，
+		if configFile.GetIsEncrypted() {
+			privateKey, err := rsa.GenerateRSAKey()
+			if err != nil {
+				return nil, err
+			}
+			configFile.PublicKey = privateKey.PublicKey
+			c.privateKey = privateKey
+		}
 
-// Decrypt 解密
-func (c *clientCrypto) Decrypt(ciphertext string, key []byte) (string, error) {
-	plaintext, err := c.cryptor.DecryptFromBase64(ciphertext, key)
-	if err != nil {
-		return "", err
+		resp, err := next(configFile)
+		if err != nil {
+			return resp, err
+		}
+		// 如果是加密配置
+		if resp.GetConfigFile().GetIsEncrypted() && resp.GetConfigFile().GetContent() != "" {
+			// 返回了数据密钥，解密配置
+			if resp.GetConfigFile().GetDataKey() != "" {
+				dataKey, err := rsa.DecryptFromBase64(configFile.GetDataKey(), c.privateKey.PrivateKey)
+				if err != nil {
+					return nil, err
+				}
+				plainContent, err := c.cryptor.DecryptFromBase64(resp.GetConfigFile().GetContent(), dataKey)
+				if err != nil {
+					return nil, err
+				}
+				resp.ConfigFile.Content = string(plainContent)
+			} else {
+				// 没有返回数据密钥，设置为加密配置重新请求
+				configFile.IsEncrypted = true
+				return c.DoFilter(configFile, next)(configFile)
+			}
+		}
+		return resp, err
 	}
-	return string(plaintext), nil
 }
